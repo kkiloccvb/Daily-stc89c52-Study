@@ -1,0 +1,107 @@
+C51 COMPILER V9.54   MAIN                                                                  03/26/2026 17:31:38 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          
+   3          // --- 引脚定义 ---
+   4          sbit LED = P2^0;
+   5          sbit Buzzer = P2^5;
+   6          sbit Key1 = P3^1;
+   7          
+   8          // --- 全局变量（标志位与数据） ---
+   9          static unsigned int key_count = 0;
+  10          unsigned int Tone_Reload = 63628; 
+  11          unsigned char PWM_Duty = 0;      // LED 亮度占空比
+  12          bit tick_200ms = 0;             // 报警节奏标志
+  13          bit tick_10ms = 0;              // 亮度更新标志
+  14          bit Emergency_Mode = 0;         // 紧急制动模式标志位
+  15          
+  16          // --- 定时器初始化 ---
+  17          void Init_Timers() {
+  18   1          TMOD = 0x11; // 定时器0和1都用模式1 (16位)
+  19   1          // T0 负责音调和PWM计数 (约100us一次)
+  20   1          TH0 = 0xFF; TL0 = 0x9C; 
+  21   1          // T1 负责逻辑节拍 (50ms一次)
+  22   1          TH1 = 0x3C; TL1 = 0xB0;
+  23   1          ET0 = 1; ET1 = 1; EA = 1; TR0 = 1; TR1 = 1;
+  24   1      }
+  25          
+  26          // --- 后台：高频动作 (声音+光) ---
+  27          void Timer0_Routine() interrupt 1 {
+  28   1          static unsigned char pwm_count = 0;
+  29   1          TH0 = Tone_Reload >> 8;
+  30   1          TL0 = Tone_Reload & 0xFF;
+  31   1      
+  32   1          if(!Emergency_Mode) { // 正常模式：产生报警方波
+  33   2              Buzzer = ~Buzzer;
+  34   2              // PWM 控制 LED 亮度
+  35   2              pwm_count++;
+  36   2              if(pwm_count >= 100) pwm_count = 0;
+  37   2              if(pwm_count < PWM_Duty) LED = 0; else LED = 1;
+  38   2          } else { // 紧急模式：蜂鸣器长鸣，灯常亮
+  39   2              Buzzer = 0; 
+  40   2              LED = 0;
+  41   2          }
+  42   1      }
+  43          
+  44          // --- 后台：节奏管理 ---
+  45          void Timer1_Routine() interrupt 3 {
+  46   1          static unsigned char c1 = 0, c2 = 0;
+  47   1          TH1 = 0x3C; TL1 = 0xB0;
+  48   1          c1++; c2++;
+  49   1          if(c1 >= 2) { tick_10ms = 1; c1 = 0; }
+  50   1          if(c2 >= 4) { tick_200ms = 1; c2 = 0; }
+  51   1      }
+  52          
+  53          // --- 前台：决策逻辑 ---
+  54          void main() {
+C51 COMPILER V9.54   MAIN                                                                  03/26/2026 17:31:38 PAGE 2   
+
+  55   1          signed char dir = 1;
+  56   1          Init_Timers();
+  57   1          while(1) {
+  58   2              // 1. 处理亮度变化 (每10ms)
+  59   2              if(tick_10ms && !Emergency_Mode) {
+  60   3                  tick_10ms = 0;
+  61   3                  PWM_Duty += dir;
+  62   3                  if(PWM_Duty >= 100 || PWM_Duty <= 0) dir = -dir;
+  63   3              }
+  64   2              // 2. 处理音调变化 (每200ms)
+  65   2              if(tick_200ms && !Emergency_Mode) {
+  66   3                  tick_200ms = 0;
+  67   3                  Tone_Reload += 100; // 模拟距离缩短，音调逐渐变尖
+  68   3                  if(Tone_Reload > 65000) Tone_Reload = 63628;
+  69   3              }
+  70   2              // 3. 按键检测 (人工介入)
+  71   2              // 在 main 的 while(1) 里面修改第三部分：
+  72   2              // 3. 按键检测 (人工介入) - 状态机/边沿检测法
+  73   2              if(tick_10ms) { // 借用 10ms 节拍作为消抖周期
+  74   3                  static bit last_key_state = 1; // 记录上一次按键状态
+  75   3                  if(Key1 == 0 && last_key_state == 1) { // 捕捉下降沿：之前是高，现在是低
+  76   4                      Emergency_Mode = !Emergency_Mode;  // 翻转模式
+  77   4                  }
+  78   3                  last_key_state = Key1; // 更新状态记忆
+  79   3                }
+  80   2            }
+  81   1          }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    219    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      8       1
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      4    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

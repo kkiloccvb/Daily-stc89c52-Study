@@ -1,0 +1,82 @@
+C51 COMPILER V9.54   MAIN                                                                  03/24/2026 19:54:25 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          void Timer0_Init()
+   3          {
+   4   1          TMOD &= 0xF0;       // 把 TMOD 的低 4 位清零（不影响定时器 1）
+   5   1          TMOD |= 0x01;       // 设置定时器 0 为模式 1（16 位定时器）
+   6   1          
+   7   1          TH0 = 0x3C;         // 赋初值高 8 位 (15536 >> 8)
+   8   1          TL0 = 0xB0;         // 赋初值低 8 位 (15536 & 0xFF)
+   9   1          
+  10   1          TF0 = 0;            // 清除溢出标志位
+  11   1          ET0 = 1;            // 开启定时器 0 中断允许
+  12   1          EA  = 1;            // 开启总中断（这一步最容易忘！）
+  13   1          TR0 = 1;            // 定时器 0 开始运行
+  14   1      }
+  15          
+  16          unsigned char count = 0; // 定义一个计数变量
+  17          unsigned char mode = 1;
+  18          static unsigned char last_key = 1;
+  19          
+  20          void Timer0_Routine() interrupt 1
+  21          {
+  22   1          unsigned char current_key;
+  23   1          // 关键：必须手动重装初值，否则下次溢出就是从 0 开始，时间就不准了！
+  24   1          TH0 = 0x3C; 
+  25   1          TL0 = 0xB0;
+  26   1          current_key = P3_1;
+  27   1          if (last_key == 1 && current_key == 0) 
+  28   1          {
+  29   2            mode = !mode; // 翻转模式：快变慢，慢变快
+  30   2          }
+  31   1          last_key = current_key;
+  32   1          
+  33   1          count++;            // 每次进中断（50ms）计数加 1
+  34   1          
+  35   1          if(mode == 0 && count >= 20) // 慢速：1秒翻转
+  36   1          {
+  37   2              P2_0 = ~P2_0;
+  38   2              count = 0;
+  39   2          }
+  40   1          if(mode == 1 && count >= 4)  // 快速：0.2秒翻转
+  41   1          {
+  42   2              P2_0 = ~P2_0;
+  43   2              count = 0;
+  44   2          }
+  45   1      }
+  46          
+  47          void main()
+  48          {
+  49   1          Timer0_Init();      // 执行初始化
+  50   1          
+  51   1          while(1)
+  52   1          {
+  53   2              // 这里可以写别的代码，灯的闪烁完全交给硬件中断处理
+  54   2              // 这就是“非阻塞”编程的魅力
+C51 COMPILER V9.54   MAIN                                                                  03/24/2026 19:54:25 PAGE 2   
+
+  55   2          }
+  56   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    114    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      3    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

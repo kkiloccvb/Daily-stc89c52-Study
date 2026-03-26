@@ -1,0 +1,217 @@
+C51 COMPILER V9.54   MAIN                                                                  03/19/2026 11:32:18 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "REG52.H"  // 51单片机寄存器定义头文件
+   2          
+   3          // 函数声明（必须放在最前面，避免重定义/未声明）
+   4          void View(unsigned long u32ViewData);          
+   5          void to_BufferData(unsigned long u32Data,unsigned char *pu8Buffer,unsigned char u8Type); 
+   6          void SendString(unsigned char *pu8String);     
+   7          void UART_Init(); // 新增：串口初始化函数（只执行一次）
+   8          
+   9          // 全局变量：记录发送的变量序号（替代原静态变量，避免逻辑混乱）
+  10          unsigned char g_u8SerialNumber = 1;
+  11          
+  12          // 串口初始化（仅执行一次，放在main开头）
+  13          void UART_Init()
+  14          {
+  15   1          SCON   = 0x50;    // 串口模式1（8位UART，可变波特率），允许接收
+  16   1          TMOD  &= 0x0F;    // 清空定时器1的模式位
+  17   1          TMOD  |= 0x20;    // 定时器1模式2（8位自动重装），定时器0保持默认（不用）
+  18   1          TH1    = 0xFD;    // 11.0592MHz晶振，9600波特率（精准值）
+  19   1          TL1    = 0xFD;    
+  20   1          TR1    = 1;       // 启动定时器1
+  21   1          ES     = 0;       // 关闭串口中断（查询模式）
+  22   1          TI     = 0;       // 清除发送标志
+  23   1          RI     = 0;       // 清除接收标志
+  24   1      }
+  25          
+  26          // 串口发送字符串（核心修复：用TI标志位，而非固定延时）
+  27          void SendString(unsigned char *pu8String)
+  28          {
+  29   1          unsigned int Su16SendCnt = 0; // 取消static，避免累计错误
+  30   1          
+  31   1          while(pu8String[Su16SendCnt] != 0) // 遍历到字符串结束符
+  32   1          {
+  33   2              SBUF = pu8String[Su16SendCnt]; // 写入要发送的字符
+  34   2              while(!TI);                    // 等待发送完成（核心！替代固定延时）
+  35   2              TI = 0;                        // 清除发送标志
+  36   2              Su16SendCnt++;
+  37   2          }
+  38   1      }
+  39          
+  40          // 数据转字符串缓冲区（原逻辑保留，修复序号赋值）
+  41          void to_BufferData(unsigned long u32Data,unsigned char *pu8Buffer,unsigned char u8Type)
+  42          {
+  43   1          // UTF-8中文常量（"第X个数"、"十进制:"等）
+  44   1          code unsigned char Cu8Array1[]={0xE7,0xAC,0xAC,0x30,0xE4,0xB8,0xAA,0xE6,0x95,0xB0,0x00}; // 第0个数
+  45   1          code unsigned char Cu8Array2[]={0xE5,0x8D,0x81,0xE8,0xBF,0x9B,0xE5,0x88,0xB6,0x3A,0x00}; // 十进制:
+  46   1          code unsigned char Cu8Array3[]={0xE5,0x8D,0x81,0xE5,0x85,0xAD,0xE8,0xBF,0x9B,0xE5,0x88,0xB6,0x3A,0x00}
+             -; // 十六进制:
+  47   1          code unsigned char Cu8Array4[]={0xE4,0xBA,0x8C,0xE8,0xBF,0x9B,0xE5,0x88,0xB6,0x3A,0x00}; // 二进制:
+  48   1          
+  49   1          unsigned int Su16BufferCnt, Su16TempCnt;
+  50   1          unsigned long Su32Temp1, Su32Temp2, Su32Temp3;
+  51   1          unsigned char Su8ViewFlag=0;
+  52   1      
+  53   1          if(1==u8Type) // 类型1：中文序号
+C51 COMPILER V9.54   MAIN                                                                  03/19/2026 11:32:18 PAGE 2   
+
+  54   1          {
+  55   2              // 复制"第X个数"到缓冲区（替换X为当前序号）
+  56   2              for(Su16BufferCnt=0; Su16BufferCnt<9; Su16BufferCnt++)
+  57   2              {
+  58   3                  pu8Buffer[Su16BufferCnt] = Cu8Array1[Su16BufferCnt];
+  59   3              }
+  60   2              pu8Buffer[3] = g_u8SerialNumber + '0'; // 替换"第0个数"的0为当前序号
+  61   2              pu8Buffer[9]  = 0x0d; // 回车
+  62   2              pu8Buffer[10] = 0x0a; // 换行
+  63   2              pu8Buffer[11] = 0;    // 结束符
+  64   2              g_u8SerialNumber++;   // 序号自增
+  65   2              return;
+  66   2          }
+  67   1          else if(2==u8Type) // 十进制
+  68   1          {
+  69   2              for(Su16BufferCnt=0; Su16BufferCnt<10; Su16BufferCnt++)
+  70   2              {
+  71   3                  pu8Buffer[Su16BufferCnt] = Cu8Array2[Su16BufferCnt];
+  72   3              }
+  73   2              Su32Temp1=1000000000;
+  74   2              Su32Temp2=10;
+  75   2              Su16TempSet=10;
+*** ERROR C202 IN LINE 75 OF main.c: 'Su16TempSet': undefined identifier
+  76   2          }
+  77   1          else if(3==u8Type) // 十六进制
+  78   1          {
+  79   2              for(Su16BufferCnt=0; Su16BufferCnt<13; Su16BufferCnt++)
+  80   2              {
+  81   3                  pu8Buffer[Su16BufferCnt] = Cu8Array3[Su16BufferCnt];
+  82   3              }
+  83   2              Su32Temp1=0x10000000;
+  84   2              Su32Temp2=0x10;
+  85   2              Su16TempSet=8;
+*** ERROR C202 IN LINE 85 OF main.c: 'Su16TempSet': undefined identifier
+  86   2          }
+  87   1          else // 二进制
+  88   1          {
+  89   2              for(Su16BufferCnt=0; Su16BufferCnt<10; Su16BufferCnt++)
+  90   2              {
+  91   3                  pu8Buffer[Su16BufferCnt] = Cu8Array4[Su16BufferCnt];
+  92   3              }
+  93   2              Su32Temp1=0x80000000;
+  94   2              Su32Temp2=2;
+  95   2              Su16TempSet=32;
+*** ERROR C202 IN LINE 95 OF main.c: 'Su16TempSet': undefined identifier
+  96   2          }
+  97   1      
+  98   1          // 数值转换逻辑（原逻辑保留）
+  99   1          Su8ViewFlag=0;
+ 100   1          for(Su16TempCnt=0;Su16TempCnt<Su16TempSet;Su16TempCnt++)
+*** ERROR C202 IN LINE 100 OF main.c: 'Su16TempSet': undefined identifier
+ 101   1          {
+ 102   2              Su32Temp3=u32Data/Su32Temp1%Su32Temp2;
+ 103   2              if(Su32Temp3<10)
+ 104   2              {
+ 105   3                  pu8Buffer[Su16BufferCnt]=Su32Temp3+'0';
+ 106   3              }
+ 107   2              else
+ 108   2              {
+ 109   3                  pu8Buffer[Su16BufferCnt]=Su32Temp3-10+'A';
+ 110   3              }
+ 111   2              if(0==u32Data)
+C51 COMPILER V9.54   MAIN                                                                  03/19/2026 11:32:18 PAGE 3   
+
+ 112   2              {
+ 113   3                  Su16BufferCnt++;
+ 114   3                  break;
+ 115   3              }
+ 116   2              else if(0==Su8ViewFlag)
+ 117   2              {
+ 118   3                  if('0'!=pu8Buffer[Su16BufferCnt])
+ 119   3                  {
+ 120   4                      Su8ViewFlag=1;
+ 121   4                      Su16BufferCnt++;
+ 122   4                  }
+ 123   3              }
+ 124   2              else
+ 125   2              {
+ 126   3                  Su16BufferCnt++;
+ 127   3              }
+ 128   2              Su32Temp1=Su32Temp1/Su32Temp2;
+ 129   2          }
+ 130   1          pu8Buffer[Su16BufferCnt] = 0x0d;
+ 131   1          pu8Buffer[Su16BufferCnt+1] = 0x0a;
+ 132   1          pu8Buffer[Su16BufferCnt+2] = 0;
+ 133   1      }
+ 134          
+ 135          // View函数（修复重复定义，简化逻辑）
+ 136          void View(unsigned long u32ViewData)
+ 137          {
+ 138   1          static unsigned char Su8ViewBuffer[43];
+ 139   1          code unsigned char Cu8_0D_0A[]={0x0d,0x0a,0x00};
+ 140   1          // UTF-8"开始..."
+ 141   1          code unsigned char Cu8Start[]={0xE5,0xBC,0x80,0xE5,0xA7,0x8B,0xE2,0x80,0xA6,0x00}; 
+ 142   1          static unsigned char Su8FirstFlag=0;
+ 143   1      
+ 144   1          // 首次执行：发送初始化提示
+ 145   1          if(0==Su8FirstFlag)
+ 146   1          {
+ 147   2              Su8FirstFlag=1;
+ 148   2              // 短延时（等串口稳定）
+ 149   2              for(unsigned int i=0; i<10000; i++);
+*** ERROR C141 IN LINE 149 OF main.c: syntax error near 'unsigned'
+*** ERROR C202 IN LINE 149 OF main.c: 'i': undefined identifier
+*** ERROR C202 IN LINE 149 OF main.c: 'i': undefined identifier
+*** ERROR C202 IN LINE 149 OF main.c: 'i': undefined identifier
+*** ERROR C141 IN LINE 149 OF main.c: syntax error near ')'
+ 150   2              SendString(Cu8Start);    
+ 151   2              SendString(Cu8_0D_0A);   
+ 152   2              SendString(Cu8_0D_0A);   
+ 153   2          }
+ 154   1      
+ 155   1          // 发送序号、十进制、十六进制、二进制
+ 156   1          to_BufferData(u32ViewData, Su8ViewBuffer, 1);
+ 157   1          SendString(Su8ViewBuffer);
+ 158   1          to_BufferData(u32ViewData, Su8ViewBuffer, 2);
+ 159   1          SendString(Su8ViewBuffer);
+ 160   1          to_BufferData(u32ViewData, Su8ViewBuffer, 3);
+ 161   1          SendString(Su8ViewBuffer);
+ 162   1          to_BufferData(u32ViewData, Su8ViewBuffer, 4);
+ 163   1          SendString(Su8ViewBuffer);
+ 164   1          SendString(Cu8_0D_0A);
+ 165   1      }
+ 166          
+ 167          // 主函数（核心：先初始化串口）
+ 168          void main() 
+C51 COMPILER V9.54   MAIN                                                                  03/19/2026 11:32:18 PAGE 4   
+
+ 169          {
+ 170   1          unsigned char a; // RAM随机值
+ 171   1          unsigned char b; // RAM随机值
+ 172   1          unsigned char c; // RAM随机值
+ 173   1          unsigned char d=9; // 初始化为9
+ 174   1      
+ 175   1          UART_Init(); // 第一步：初始化串口（必须最先执行）
+ 176   1          
+ 177   1          b=3; 
+ 178   1          c=b; 
+ 179   1      
+ 180   1          // 发送4个变量
+ 181   1          View(a); 
+ 182   1          View(b); 
+ 183   1          View(c); 
+ 184   1          View(d); 
+ 185   1      
+ 186   1          while(1) // 死循环
+ 187   1          {
+ 188   2          }
+ 189   1      }
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  9 ERROR(S)

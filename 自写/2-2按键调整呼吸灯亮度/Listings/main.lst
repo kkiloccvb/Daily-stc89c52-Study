@@ -1,0 +1,83 @@
+C51 COMPILER V9.54   MAIN                                                                  03/24/2026 20:44:59 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          
+   3          unsigned char T0Count = 0;  // 100步计数器 (0-99)
+   4          unsigned char Compare = 0;  // 亮度等级 (0, 20, 40, 60, 80, 100)
+   5          static unsigned char last_key = 1; // 记忆按键上一次状态
+   6          static unsigned int key_count = 0;
+   7          void Timer0_Init()
+   8          {
+   9   1          TMOD &= 0xF0;
+  10   1          TMOD |= 0x01;
+  11   1          TH0 = 0xFF; 
+  12   1          TL0 = 0x9C; // 100微秒初值
+  13   1          ET0 = 1;
+  14   1          EA = 1;
+  15   1          TR0 = 1;
+  16   1      }
+  17          
+  18          void Timer0_Routine() interrupt 1
+  19          {
+  20   1          unsigned char current_key;
+  21   1          TH0 = 0xFF; 
+  22   1          TL0 = 0x9C;
+  23   1          
+  24   1          // --- 【1. PWM 核心逻辑】 ---
+  25   1          T0Count++;
+  26   1          if(T0Count >= 100) T0Count = 0;
+  27   1          
+  28   1          if(T0Count < Compare) P2_0 = 0; // 低电平点亮
+  29   1          else P2_0 = 1;
+  30   1      
+  31   1          // --- 【2. 按键检测逻辑 (每100us扫一次)】 ---
+  32   1          // 注意：这里有个测控小技巧，100us扫一次太快，会有细微抖动
+  33   1          // 我们可以加一个计数器，每进 200 次中断（即20ms）才真正判一次键
+  34   1          key_count++;
+  35   1          if(key_count >= 200) 
+  36   1          {
+  37   2              key_count = 0;
+  38   2              current_key = P3_1; // 读取按键
+  39   2              
+  40   2              if(last_key == 1 && current_key == 0) // 下降沿触发
+  41   2              {
+  42   3                  Compare += 10; // 亮度加 20%
+  43   3                  if(Compare > 100) Compare = 0; // 循环回到最暗
+  44   3              }
+  45   2              last_key = current_key;
+  46   2          }
+  47   1      }
+  48          
+  49          void main()
+  50          {
+  51   1          Timer0_Init();
+  52   1          while(1)
+  53   1          {
+  54   2              // CPU 现在完全空出来了！
+C51 COMPILER V9.54   MAIN                                                                  03/24/2026 20:44:59 PAGE 2   
+
+  55   2              // 你可以在这里写显示数码管的代码，或者串口通信
+  56   2          }
+  57   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    123    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      5    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
