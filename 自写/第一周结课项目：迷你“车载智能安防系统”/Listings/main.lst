@@ -1,0 +1,141 @@
+C51 COMPILER V9.54   MAIN                                                                  03/30/2026 16:40:02 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          
+   3          // --- A2开发板引脚校准 ---
+   4          sbit LED = P2^0;
+   5          sbit Buzzer = P2^5;
+   6          sbit Key1 = P3^1;
+   7          // 138译码器引脚（对应原理图P22, P23, P24）
+   8          sbit LSA = P2^2;
+   9          sbit LSB = P2^3;
+  10          sbit LSC = P2^4;
+  11          
+  12          // --- 全局变量 ---
+  13          unsigned char System_State = 0; // 0:设防(S1), 1:报警(AL)
+  14          unsigned char Seconds = 60;     
+  15          unsigned char T1_Count = 0;     
+  16          unsigned char PWM_Duty = 5;     
+  17          bit tick_10ms = 0;
+  18          
+  19          // 【修正点1】根据A2开发板原理图校准的共阴极段码表
+  20          // 0-9, A, L, S, -, 灭(0x00)
+  21          unsigned char NixieTable[] = {
+  22              0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F, // 0-9
+  23              0x77, // A (索引10)
+  24              0x38, // L (索引11)
+  25              0x6D, // S (索引12)
+  26              0x40  // - (索引13)
+  27          };
+  28          
+  29          // 【修正点2】位选控制：确保顺序从左到右
+  30          // A2开发板通常 LED8 是最左边，LED1 是最右边
+  31          void Nixie_SetPos(unsigned char pos) {
+  32   1          // 根据你的描述调整物理位置，如果显示还是反的，请将 pos 改为 (7-pos)
+  33   1          LSA = pos & 0x01;
+  34   1          LSB = (pos >> 1) & 0x01;
+  35   1          LSC = (pos >> 2) & 0x01;
+  36   1      }
+  37          
+  38          void Init_Timers() {
+  39   1          TMOD = 0x11; 
+  40   1          TH0 = 0xFC; TL0 = 0x66; // 1ms刷新
+  41   1          TH1 = 0x3C; TL1 = 0xB0; // 50ms中断
+  42   1          ET0 = 1; ET1 = 1; EA = 1; TR0 = 1; TR1 = 1;
+  43   1      }
+  44          
+  45          void Timer0_Routine() interrupt 1 {
+  46   1          static unsigned char scan_pos = 0;
+  47   1          static unsigned char pwm_cnt = 0;
+  48   1          static unsigned int alert_cnt = 0;
+  49   1          TH0 = 0xFC; TL0 = 0x66; 
+  50   1      
+  51   1          // --- 硬件驱动逻辑 ---
+  52   1          pwm_cnt++; if(pwm_cnt >= 100) pwm_cnt = 0;
+  53   1          
+  54   1          if(System_State == 0) { // 设防模式：呼吸感
+C51 COMPILER V9.54   MAIN                                                                  03/30/2026 16:40:02 PAGE 2   
+
+  55   2              if(pwm_cnt < PWM_Duty) LED = 0; else LED = 1;
+  56   2              Buzzer = 1; 
+  57   2          } else { // 报警模式：同步闪烁
+  58   2              alert_cnt++;
+  59   2              if(alert_cnt < 100) { LED = 0; Buzzer = 0; }
+  60   2              else if(alert_cnt < 200) { LED = 1; Buzzer = 1; }
+  61   2              else alert_cnt = 0;
+  62   2          }
+  63   1      
+  64   1          // --- 【修正点3】数码管显示逻辑 ---
+  65   1          P0 = 0x00; // 消隐
+  66   1          Nixie_SetPos(scan_pos);
+  67   1      
+  68   1          if(System_State == 0) { // 设防模式：显示 S1 
+  69   2              if(scan_pos == 7) P0 = NixieTable[12]; // 最左位显示 S
+  70   2              if(scan_pos == 6) P0 = NixieTable[1];  // 第二位显示 1
+  71   2          } else { // 报警模式：显示 AL 和 倒计时
+  72   2              if(scan_pos == 7) P0 = NixieTable[10]; // 最左位 A
+  73   2              if(scan_pos == 6) P0 = NixieTable[11]; // 第二位 L
+  74   2              // 倒计时显示在右侧
+  75   2              if(scan_pos == 2) P0 = NixieTable[Seconds / 100]; 
+  76   2              if(scan_pos == 1) P0 = NixieTable[(Seconds / 10) % 10];
+  77   2              if(scan_pos == 0) P0 = NixieTable[Seconds % 10];
+  78   2          }
+  79   1      
+  80   1          if(++scan_pos > 7) scan_pos = 0;
+  81   1      }
+  82          
+  83          void Timer1_Routine() interrupt 3 {
+  84   1          static unsigned char c1 = 0;
+  85   1          TH1 = 0x3C; TL1 = 0xB0;
+  86   1          if(++c1 >= 2) { tick_10ms = 1; c1 = 0; }
+  87   1      }
+  88          
+  89          void main() {
+  90   1          static bit last_key = 1;
+  91   1          Init_Timers();
+  92   1          while(1) {
+  93   2              if(tick_10ms) {
+  94   3                  tick_10ms = 0;
+  95   3                  // 按键处理
+  96   3                  if(Key1 == 0 && last_key == 1) { 
+  97   4                      if(System_State == 0) { System_State = 1; Seconds = 60; }
+  98   4                      else { System_State = 0; }
+  99   4                  }
+ 100   3                  last_key = Key1;
+ 101   3      
+ 102   3                  // 计时逻辑
+ 103   3                  if(System_State == 1) {
+ 104   4                      T1_Count++;
+ 105   4                      if(T1_Count >= 100) {
+ 106   5                          T1_Count = 0;
+ 107   5                          if(Seconds > 0) Seconds--;
+ 108   5                          else System_State = 0;
+ 109   5                      }
+ 110   4                  }
+ 111   3              }
+ 112   2          }
+ 113   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+C51 COMPILER V9.54   MAIN                                                                  03/30/2026 16:40:02 PAGE 3   
+
+   CODE SIZE        =    366    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     23    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      2    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

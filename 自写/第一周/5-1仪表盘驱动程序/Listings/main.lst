@@ -1,0 +1,138 @@
+C51 COMPILER V9.54   MAIN                                                                  03/29/2026 12:26:57 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          
+   3          // --- 引脚定义 ---
+   4          sbit LED = P2^0;
+   5          sbit Buzzer = P2^5;
+   6          sbit Key1 = P3^1;
+   7          // 138译码器引脚
+   8          sbit LSA = P2^2;
+   9          sbit LSB = P2^3;
+  10          sbit LSC = P2^4;
+  11          
+  12          // --- 全局变量 ---
+  13          unsigned int Tone_Reload = 63628; 
+  14          unsigned char PWM_Duty = 5;      
+  15          bit tick_200ms = 0;             
+  16          bit tick_10ms = 0;              
+  17          bit Emergency_Mode = 0;         
+  18          
+  19          // 数码管段码表
+  20          unsigned char NixieTable[] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
+  21          
+  22          // 位选控制函数 (对应你发的那张 74HC138 原理图)
+  23          void Nixie_SetPos(unsigned char pos) {
+  24   1          pos--; // 1-8 映射到 0-7
+  25   1          LSA = pos & 0x01;
+  26   1          LSB = (pos >> 1) & 0x01;
+  27   1          LSC = (pos >> 2) & 0x01;
+  28   1      }
+  29          
+  30          void Init_Timers() {
+  31   1          TMOD = 0x11; 
+  32   1          TH0 = 0xFC; TL0 = 0x66; // 约 1ms 刷新一次
+  33   1          TH1 = 0x3C; TL1 = 0xB0; 
+  34   1          ET0 = 1; ET1 = 1; EA = 1; TR0 = 1; TR1 = 1;
+  35   1      }
+  36          
+  37          // 【核心：多任务合一的定时器0】
+  38          void Timer0_Routine() interrupt 1 {
+  39   1          static unsigned char pwm_count = 0;
+  40   1          static unsigned char scan_pos = 1;
+  41   1          static unsigned int buzzer_count = 0;
+  42   1      
+  43   1          // 1. 重新装载 (1ms刷新)
+  44   1          TH0 = 0xFC; TL0 = 0x66;
+  45   1      
+  46   1          // 2. 声音逻辑
+  47   1          if(!Emergency_Mode) {
+  48   2              // 模拟方波：在1ms的中断里，我们需要更细的计数来产生千赫兹的声音
+  49   2              // 这里简化：让它随中断翻转
+  50   2              buzzer_count++;
+  51   2              if(buzzer_count >= 2) { // 约 500Hz
+  52   3                  Buzzer = ~Buzzer;
+  53   3                  buzzer_count = 0;
+  54   3              }
+C51 COMPILER V9.54   MAIN                                                                  03/29/2026 12:26:57 PAGE 2   
+
+  55   2          } else {
+  56   2              Buzzer = 0; // 紧急模式常鸣（取决于硬件，有的0响有的1响）
+  57   2          }
+  58   1      
+  59   1          // 3. PWM 灯光逻辑
+  60   1          pwm_count++;
+  61   1          if(pwm_count >= 100) pwm_count = 0;
+  62   1          if(!Emergency_Mode) {
+  63   2              if(pwm_count < PWM_Duty) LED = 0; else LED = 1;
+  64   2          } else {
+  65   2              LED = 0; // 紧急模式常亮
+  66   2          }
+  67   1      
+  68   1          // 4. 数码管刷新逻辑 (扫描)
+  69   1          P0 = 0x00; // 消隐
+  70   1          Nixie_SetPos(scan_pos);
+  71   1          if(scan_pos == 1) P0 = NixieTable[PWM_Duty / 10]; // 亮度十位
+  72   1          if(scan_pos == 2) P0 = NixieTable[PWM_Duty % 10]; // 亮度个位
+  73   1          if(scan_pos == 8) P0 = NixieTable[Emergency_Mode]; // 最后一位显示模式(0/1)
+  74   1      
+  75   1          scan_pos++;
+  76   1          if(scan_pos > 8) scan_pos = 1;
+  77   1      }
+  78          
+  79          void Timer1_Routine() interrupt 3 {
+  80   1          static unsigned char c1 = 0, c2 = 0;
+  81   1          TH1 = 0x3C; TL1 = 0xB0;
+  82   1          c1++; c2++;
+  83   1          if(c1 >= 2) { tick_10ms = 1; c1 = 0; }
+  84   1          if(c2 >= 4) { tick_200ms = 1; c2 = 0; }
+  85   1      }
+  86          
+  87          void main() {
+  88   1          signed char dir = 1;
+  89   1          static bit last_key_state = 1; 
+  90   1          Init_Timers();
+  91   1          while(1) {
+  92   2              // 决策逻辑不变...
+  93   2              if(tick_10ms && !Emergency_Mode) {
+  94   3                  tick_10ms = 0;
+  95   3                  PWM_Duty += dir;
+  96   3                  if(PWM_Duty >= 100 || PWM_Duty <= 0) dir = -dir;
+  97   3              }
+  98   2              if(tick_200ms && !Emergency_Mode) {
+  99   3                  tick_200ms = 0;
+ 100   3                  // 可以在这里改变显示频率等逻辑
+ 101   3              }
+ 102   2              // 按键边沿检测
+ 103   2              if(tick_10ms) {
+ 104   3                  if(Key1 == 0 && last_key_state == 1) {
+ 105   4                      Emergency_Mode = !Emergency_Mode; 
+ 106   4                  }
+ 107   3                  last_key_state = Key1;
+ 108   3              }
+ 109   2          }
+ 110   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    312    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+C51 COMPILER V9.54   MAIN                                                                  03/29/2026 12:26:57 PAGE 3   
+
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     19    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      4    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
