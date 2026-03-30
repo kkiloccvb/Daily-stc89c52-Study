@@ -1,4 +1,4 @@
-C51 COMPILER V9.54   MAIN                                                                  03/30/2026 17:20:22 PAGE 1   
+C51 COMPILER V9.54   MAIN                                                                  03/30/2026 19:07:37 PAGE 1   
 
 
 C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
@@ -10,53 +10,133 @@ line level    source
 
    1          #include <REGX52.H>
    2          
-   3          // 串口初始化函数：4800bps @ 11.0592MHz (51最常用的频率)
-   4          void Uart_Init() {
-   5   1          SCON = 0x50;    // 8位数据, 可接收
-   6   1          PCON |= 0x80;   // 波特率倍增
-   7   1          
-   8   1          // 配置定时器1用于产生波特率
-   9   1          TMOD &= 0x0F;   // 清除T1控制位
-  10   1          TMOD |= 0x20;   // 设定T1为8位自动重装方式
-  11   1          TL1 = 0xF4;     // 设定定时初值 (4800波特率)
-  12   1          TH1 = 0xF4;     // 设定定时器重装值
-  13   1          ET1 = 0;        // 禁止T1中断 (因为它只负责心跳)
-  14   1          TR1 = 1;        // 启动T1
-  15   1      }
-  16          
-  17          // 发送一个字节
-  18          void Uart_SendByte(unsigned char Byte) {
-  19   1          SBUF = Byte;        // 将数据丢进串口缓冲寄存器
-  20   1          while(TI == 0);    // 等待发送完成 (TI由硬件置1)
-  21   1          TI = 0;             // 软件清零TI
-  22   1      }
-  23          
-  24          void main() {
-  25   1          Uart_Init();
-  26   1          while(1) {
-  27   2              Uart_SendByte('H');
-  28   2              Uart_SendByte('a');
-  29   2              Uart_SendByte('c');
-  30   2              Uart_SendByte('h');
-  31   2              Uart_SendByte('i');
-  32   2              Uart_SendByte('m');
-  33   2              Uart_SendByte('i');
-  34   2              Uart_SendByte(' ');
-  35   2              
-  36   2              // 简单延时一下，防止发太快电脑卡死
-  37   2              // 实际上建议用我们上周学的定时器标志位来控制发送节奏
-  38   2          }
+   3          // --- 1. 硬件引脚定义 (对应 A2 原理图) ---
+   4          sbit LED = P2^0;
+   5          sbit Buzzer = P2^5;
+   6          sbit Key1 = P3^1; // 注意：P3.1 也是 TXD，按键时串口可能会有轻微干扰
+   7          sbit LSA = P2^2;
+   8          sbit LSB = P2^3;
+   9          sbit LSC = P2^4;
+  10          
+  11          // --- 2. 全局变量 (放在所有函数外面，大家都能用) ---
+  12          unsigned char System_State = 0; 
+  13          unsigned char Seconds = 60;     
+  14          unsigned char T1_Count = 0;     
+  15          bit tick_10ms = 0;              
+  16          unsigned char NixieTable[] = {0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,0x7F,0x6F,0x77,0x38}; // 0-9, A, L
+  17          
+  18          // --- 3. 串口相关函数 ---
+  19          void Uart_Init() {
+  20   1          SCON = 0x50; PCON |= 0x80;
+  21   1          TMOD &= 0x0F; TMOD |= 0x20; // T1 方式2：8位自动重装
+  22   1          TL1 = 0xF4; TH1 = 0xF4;     // 4800bps @ 11.0592MHz
+  23   1          ET1 = 0; TR1 = 1; 
+  24   1      }
+  25          
+  26          void Uart_SendByte(unsigned char Byte) {
+  27   1          SBUF = Byte;
+  28   1          while(TI == 0);
+  29   1          TI = 0;
+  30   1      }
+  31          
+  32          void Uart_SendString(char *str) {
+  33   1          while (*str != '\0') Uart_SendByte(*str++);
+  34   1      }
+  35          
+  36          // --- 4. 数码管与定时器初始化 ---
+  37          void Nixie_SetPos(unsigned char pos) {
+  38   1          LSA = pos & 0x01; LSB = (pos >> 1) & 0x01; LSC = (pos >> 2) & 0x01;
   39   1      }
+  40          
+  41          void Init_Timers() {
+  42   1          // TMOD 已经在 Uart_Init 里设置过高4位了，这里只动低4位
+  43   1          TMOD &= 0xF0; TMOD |= 0x01; // T0 方式1：16位定时器
+  44   1          TH0 = 0xFC; TL0 = 0x66;     // 1ms
+  45   1          ET0 = 1; EA = 1; TR0 = 1;
+  46   1      }
+  47          
+  48          // --- 5. 中断服务函数 (系统的“后台”任务) ---
+  49          void Timer0_Routine() interrupt 1 {
+  50   1          static unsigned char scan_pos = 0;
+  51   1          static unsigned int alert_cnt = 0;
+  52   1          TH0 = 0xFC; TL0 = 0x66;
+  53   1      
+  54   1          // 数码管扫描
+C51 COMPILER V9.54   MAIN                                                                  03/30/2026 19:07:37 PAGE 2   
+
+  55   1          P0 = 0x00; 
+  56   1          Nixie_SetPos(scan_pos);
+  57   1          if(System_State == 0) {
+  58   2              if(scan_pos == 7) P0 = 0x6D; // 'S'
+  59   2              if(scan_pos == 6) P0 = 0x06; // '1'
+  60   2          } else {
+  61   2              if(scan_pos == 7) P0 = 0x77; // 'A'
+  62   2              if(scan_pos == 6) P0 = 0x38; // 'L'
+  63   2              if(scan_pos == 1) P0 = NixieTable[Seconds / 10];
+  64   2              if(scan_pos == 0) P0 = NixieTable[Seconds % 10];
+  65   2          }
+  66   1          if(++scan_pos > 7) scan_pos = 0;
+  67   1      
+  68   1          // 报警声光逻辑
+  69   1          if(System_State == 1) {
+  70   2              alert_cnt++;
+  71   2              if(alert_cnt < 100) { LED = 0; Buzzer = 0; }
+  72   2              else if(alert_cnt < 200) { LED = 1; Buzzer = 1; }
+  73   2              else alert_cnt = 0;
+  74   2          } else { LED = 1; Buzzer = 1; }
+  75   1      }
+  76          
+  77          // 利用 T0 软件计数产生 10ms 节拍
+  78          // (这里为了不占用 T1，我们把 10ms 逻辑也放进 T0 或者 main)
+  79          
+  80          // --- 6. 主程序 (系统的“前台”决策) ---
+  81          void main() {
+  82   1          static bit last_key = 1;
+  83   1          static unsigned int debounce_cnt = 0; // 消抖计数
+  84   1          
+  85   1          Uart_Init();   
+  86   1          Init_Timers(); 
+  87   1          
+  88   1          Uart_SendString("Hachimi System Online!\r\n");
+  89   1      
+  90   1          while(1) {
+  91   2              // --- 核心：软件消抖逻辑 ---
+  92   2              // 只有当程序运行了一段时间（模拟20ms），我们才去扫一次按键
+  93   2              debounce_cnt++;
+  94   2              if(debounce_cnt >= 8000) { // 调整这个数值可以改变灵敏度
+  95   3                  debounce_cnt = 0;
+  96   3                  
+  97   3                  // 1. 捕捉按下 (下降沿)
+  98   3                  if (Key1 == 0 && last_key == 1) { 
+  99   4                      System_State = !System_State;
+ 100   4                      if(System_State == 1) Seconds = 60; // 重置倒计时
+ 101   4                  }
+ 102   3                  
+ 103   3                  // 2. 捕捉松开 (上升沿) -> 此时发串口最稳
+ 104   3                  if (Key1 == 1 && last_key == 0) { 
+ 105   4                      if(System_State == 1) Uart_SendString(">> Mode: ALARM ON\r\n");
+ 106   4                      else Uart_SendString(">> Mode: SECURITY\r\n");
+ 107   4                  }
+ 108   3                  
+ 109   3                  last_key = Key1; // 更新状态
+ 110   3              }
+ 111   2      
+ 112   2              // --- 3. 倒计时秒数处理 (借用定时器0产生的1秒标志) ---
+ 113   2              // 这里可以加上你之前的 T1_Count 逻辑
+ 114   2          }
+ 115   1      }
+
+C51 COMPILER V9.54   MAIN                                                                  03/30/2026 19:07:37 PAGE 3   
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =     75    ----
-   CONSTANT SIZE    =   ----    ----
+   CODE SIZE        =    378    ----
+   CONSTANT SIZE    =     65    ----
    XDATA SIZE       =   ----    ----
    PDATA SIZE       =   ----    ----
-   DATA SIZE        =   ----    ----
+   DATA SIZE        =     20       3
    IDATA SIZE       =   ----    ----
-   BIT SIZE         =   ----    ----
+   BIT SIZE         =      2    ----
 END OF MODULE INFORMATION.
 
 
