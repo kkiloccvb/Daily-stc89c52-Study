@@ -1,0 +1,80 @@
+C51 COMPILER V9.54   MAIN                                                                  03/25/2026 18:27:12 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          
+   3          sbit Buzzer = P2^5;        // 假设蜂鸣器接在 P2.5
+   4          unsigned int Tone_Reload;  // 存储当前音调的定时器重装值
+   5          bit tick_flag = 0;         // 节拍标志位
+   6          
+   7          // 1. 定时器0：负责产生声音频率（高频）
+   8          void Timer0_Init() {
+   9   1          TMOD &= 0xF0; TMOD |= 0x01;
+  10   1          TH0 = 0xF8; TL0 = 0x8C; // 初始设为 Do
+  11   1          ET0 = 1; EA = 1; TR0 = 1;
+  12   1      }
+  13          
+  14          // 2. 定时器1：负责产生报警节拍（低频，如 100ms）
+  15          void Timer1_Init() {
+  16   1          TMOD &= 0x0F; TMOD |= 0x10;
+  17   1          TH0 = 0x3C; TL0 = 0xB0; // 50ms
+  18   1          ET1 = 1; TR1 = 1;
+  19   1      }
+  20          
+  21          void Timer0_Routine() interrupt 1 {
+  22   1          TH0 = Tone_Reload >> 8;   // 动态修改音调
+  23   1          TL0 = Tone_Reload & 0xFF;
+  24   1          Buzzer = ~Buzzer;         // 翻转电平产生方波
+  25   1      }
+  26          
+  27          void Timer1_Routine() interrupt 3 {
+  28   1          static unsigned char count = 0;
+  29   1          TH1 = 0x3C; TL1 = 0xB0;
+  30   1          count++;
+  31   1          if(count >= 4) { // 200ms 响一次
+  32   2              tick_flag = 1;
+  33   2              count = 0;
+  34   2          }
+  35   1      }
+  36          
+  37          void main() {
+  38   1          unsigned char alarm_mode = 0;
+  39   1          Timer0_Init();
+  40   1          Timer1_Init();
+  41   1          Tone_Reload = 63628; // 初始频率
+  42   1      
+  43   1          while(1) {
+  44   2              if(tick_flag == 1) { // 收到节拍信号
+  45   3                  tick_flag = 0;
+  46   3                  // 模拟无人车检测到距离变近，音调变高
+  47   3                  alarm_mode++;
+  48   3                  if(alarm_mode > 10) alarm_mode = 0;
+  49   3                  
+  50   3                  // 关键：动态调整频率
+  51   3                  Tone_Reload = 63628 + (alarm_mode * 200); 
+  52   3              }
+  53   2          }
+  54   1      }
+C51 COMPILER V9.54   MAIN                                                                  03/25/2026 18:27:12 PAGE 2   
+
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    126    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      3    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

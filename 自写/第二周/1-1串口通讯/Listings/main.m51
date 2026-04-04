@@ -1,0 +1,259 @@
+BL51 BANKED LINKER/LOCATER V6.22                                                        03/30/2026  19:07:37  PAGE 1
+
+
+BL51 BANKED LINKER/LOCATER V6.22, INVOKED BY:
+C:\KEIL_V5\C51\BIN\BL51.EXE .\Objects\STARTUP.obj, .\Objects\main.obj TO .\Objects\main PRINT (.\Listings\main.m51) RAMS
+>> IZE (256)
+
+
+MEMORY MODEL: SMALL
+
+
+INPUT MODULES INCLUDED:
+  .\Objects\STARTUP.obj (?C_STARTUP)
+  .\Objects\main.obj (MAIN)
+  C:\KEIL_V5\C51\LIB\C51S.LIB (?C_INIT)
+  C:\KEIL_V5\C51\LIB\C51S.LIB (?C?CLDPTR)
+
+
+LINK MAP OF MODULE:  .\Objects\main (?C_STARTUP)
+
+
+            TYPE    BASE      LENGTH    RELOCATION   SEGMENT NAME
+            -----------------------------------------------------
+
+            * * * * * * *   D A T A   M E M O R Y   * * * * * * *
+            REG     0000H     0008H     ABSOLUTE     "REG BANK 0"
+            DATA    0008H     0014H     UNIT         ?DT?MAIN
+            DATA    001CH     0003H     UNIT         _DATA_GROUP_
+                    001FH     0001H                  *** GAP ***
+            BIT     0020H.0   0000H.2   UNIT         ?BI?MAIN
+                    0020H.2   0000H.6                *** GAP ***
+            IDATA   0021H     0001H     UNIT         ?STACK
+
+            * * * * * * *   C O D E   M E M O R Y   * * * * * * *
+            CODE    0000H     0003H     ABSOLUTE     
+            CODE    0003H     0008H     UNIT         ?PR?_UART_SENDBYTE?MAIN
+            CODE    000BH     0003H     ABSOLUTE     
+            CODE    000EH     00B1H     UNIT         ?PR?TIMER0_ROUTINE?MAIN
+            CODE    00BFH     008CH     UNIT         ?C_C51STARTUP
+            CODE    014BH     005FH     UNIT         ?PR?MAIN?MAIN
+            CODE    01AAH     0041H     UNIT         ?CO?MAIN
+            CODE    01EBH     0027H     UNIT         ?C_INITSEG
+            CODE    0212H     0025H     UNIT         ?PR?_UART_SENDSTRING?MAIN
+            CODE    0237H     0019H     UNIT         ?C?LIB_CODE
+            CODE    0250H     0017H     UNIT         ?PR?UART_INIT?MAIN
+            CODE    0267H     0013H     UNIT         ?PR?_NIXIE_SETPOS?MAIN
+            CODE    027AH     0013H     UNIT         ?PR?INIT_TIMERS?MAIN
+
+
+
+OVERLAY MAP OF MODULE:   .\Objects\main (?C_STARTUP)
+
+
+SEGMENT                             DATA_GROUP 
+  +--> CALLED SEGMENT             START    LENGTH
+-------------------------------------------------
+?C_C51STARTUP                     -----    -----
+  +--> ?PR?MAIN?MAIN
+  +--> ?C_INITSEG
+
+?PR?MAIN?MAIN                     -----    -----
+BL51 BANKED LINKER/LOCATER V6.22                                                      03/30/2026  19:07:37  PAGE 2
+
+
+  +--> ?PR?UART_INIT?MAIN
+  +--> ?PR?INIT_TIMERS?MAIN
+  +--> ?CO?MAIN
+  +--> ?PR?_UART_SENDSTRING?MAIN
+
+?PR?_UART_SENDSTRING?MAIN         001CH    0003H
+  +--> ?PR?_UART_SENDBYTE?MAIN
+
+*** NEW ROOT ***************************************************
+
+?PR?TIMER0_ROUTINE?MAIN           -----    -----
+  +--> ?PR?_NIXIE_SETPOS?MAIN
+
+
+
+SYMBOL TABLE OF MODULE:  .\Objects\main (?C_STARTUP)
+
+  VALUE           TYPE          NAME
+  ----------------------------------
+
+  -------         MODULE        ?C_STARTUP
+  C:00BFH         SEGMENT       ?C_C51STARTUP
+  I:0021H         SEGMENT       ?STACK
+  C:0000H         PUBLIC        ?C_STARTUP
+  D:00E0H         SYMBOL        ACC
+  D:00F0H         SYMBOL        B
+  D:0083H         SYMBOL        DPH
+  D:0082H         SYMBOL        DPL
+  N:0000H         SYMBOL        IBPSTACK
+  N:0100H         SYMBOL        IBPSTACKTOP
+  N:0080H         SYMBOL        IDATALEN
+  C:00C2H         SYMBOL        IDATALOOP
+  N:0000H         SYMBOL        PBPSTACK
+  N:0100H         SYMBOL        PBPSTACKTOP
+  N:0000H         SYMBOL        PDATALEN
+  N:0000H         SYMBOL        PDATASTART
+  N:0000H         SYMBOL        PPAGE
+  N:0000H         SYMBOL        PPAGEENABLE
+  D:00A0H         SYMBOL        PPAGE_SFR
+  D:0081H         SYMBOL        SP
+  C:00BFH         SYMBOL        STARTUP1
+  N:0000H         SYMBOL        XBPSTACK
+  N:0000H         SYMBOL        XBPSTACKTOP
+  N:0000H         SYMBOL        XDATALEN
+  N:0000H         SYMBOL        XDATASTART
+  C:0000H         LINE#         126
+  C:00BFH         LINE#         133
+  C:00C1H         LINE#         134
+  C:00C2H         LINE#         135
+  C:00C3H         LINE#         136
+  C:00C5H         LINE#         185
+  C:00C8H         LINE#         196
+  -------         ENDMOD        ?C_STARTUP
+
+  -------         MODULE        MAIN
+  C:0000H         SYMBOL        _ICE_DUMMY_
+  C:000EH         PUBLIC        Timer0_Routine
+BL51 BANKED LINKER/LOCATER V6.22                                                      03/30/2026  19:07:37  PAGE 3
+
+
+  D:0080H         PUBLIC        P0
+  D:00A0H         PUBLIC        P2
+  D:00B0H         PUBLIC        P3
+  B:00A0H.5       PUBLIC        Buzzer
+  B:00A8H.7       PUBLIC        EA
+  C:0212H         PUBLIC        _Uart_SendString
+  C:0250H         PUBLIC        Uart_Init
+  B:0098H.1       PUBLIC        TI
+  C:0003H         PUBLIC        _Uart_SendByte
+  C:014BH         PUBLIC        main
+  D:0099H         PUBLIC        SBUF
+  D:0087H         PUBLIC        PCON
+  D:0098H         PUBLIC        SCON
+  D:0089H         PUBLIC        TMOD
+  C:0267H         PUBLIC        _Nixie_SetPos
+  B:00A8H.1       PUBLIC        ET0
+  B:00A8H.3       PUBLIC        ET1
+  D:008CH         PUBLIC        TH0
+  D:008DH         PUBLIC        TH1
+  B:0020H.1       PUBLIC        tick_10ms
+  D:008AH         PUBLIC        TL0
+  D:008BH         PUBLIC        TL1
+  D:000DH         PUBLIC        Seconds
+  B:00A0H.0       PUBLIC        LED
+  B:0088H.4       PUBLIC        TR0
+  B:0088H.6       PUBLIC        TR1
+  B:00B0H.1       PUBLIC        Key1
+  B:00A0H.2       PUBLIC        LSA
+  B:00A0H.3       PUBLIC        LSB
+  B:00A0H.4       PUBLIC        LSC
+  D:000EH         PUBLIC        NixieTable
+  D:001AH         PUBLIC        System_State
+  C:027AH         PUBLIC        Init_Timers
+  D:001BH         PUBLIC        T1_Count
+  -------         PROC          UART_INIT
+  C:0250H         LINE#         19
+  C:0250H         LINE#         20
+  C:0256H         LINE#         21
+  C:025CH         LINE#         22
+  C:0262H         LINE#         23
+  C:0266H         LINE#         24
+  -------         ENDPROC       UART_INIT
+  -------         PROC          _UART_SENDBYTE
+  D:0007H         SYMBOL        Byte
+  C:0003H         LINE#         26
+  C:0003H         LINE#         27
+  C:0005H         LINE#         28
+  C:0008H         LINE#         29
+  C:000AH         LINE#         30
+  -------         ENDPROC       _UART_SENDBYTE
+  -------         PROC          _UART_SENDSTRING
+  D:001CH         SYMBOL        str
+  C:0212H         LINE#         32
+  C:0218H         LINE#         33
+  C:0236H         LINE#         34
+  -------         ENDPROC       _UART_SENDSTRING
+  -------         PROC          _NIXIE_SETPOS
+BL51 BANKED LINKER/LOCATER V6.22                                                      03/30/2026  19:07:37  PAGE 4
+
+
+  D:0007H         SYMBOL        pos
+  C:0267H         LINE#         37
+  C:0267H         LINE#         38
+  C:0279H         LINE#         39
+  -------         ENDPROC       _NIXIE_SETPOS
+  -------         PROC          INIT_TIMERS
+  C:027AH         LINE#         41
+  C:027AH         LINE#         43
+  C:0280H         LINE#         44
+  C:0286H         LINE#         45
+  C:028CH         LINE#         46
+  -------         ENDPROC       INIT_TIMERS
+  -------         PROC          TIMER0_ROUTINE
+  -------         DO            
+  D:0008H         SYMBOL        scan_pos
+  D:0009H         SYMBOL        alert_cnt
+  -------         ENDDO         
+  C:000EH         LINE#         49
+  C:001BH         LINE#         52
+  C:0021H         LINE#         55
+  C:0024H         LINE#         56
+  C:0029H         LINE#         57
+  C:002DH         LINE#         58
+  C:0035H         LINE#         59
+  C:003EH         LINE#         60
+  C:0040H         LINE#         61
+  C:0048H         LINE#         62
+  C:0050H         LINE#         63
+  C:0061H         LINE#         64
+  C:0073H         LINE#         65
+  C:0073H         LINE#         66
+  C:007FH         LINE#         69
+  C:0084H         LINE#         70
+  C:008CH         LINE#         71
+  C:009BH         LINE#         72
+  C:00A8H         LINE#         73
+  C:00AEH         LINE#         74
+  C:00B4H         LINE#         75
+  -------         ENDPROC       TIMER0_ROUTINE
+  -------         PROC          MAIN
+  -------         DO            
+  B:0020H.0       SYMBOL        last_key
+  D:000BH         SYMBOL        debounce_cnt
+  -------         ENDDO         
+  C:014BH         LINE#         81
+  C:014BH         LINE#         85
+  C:014EH         LINE#         86
+  C:0151H         LINE#         88
+  C:015AH         LINE#         90
+  C:015AH         LINE#         93
+  C:0162H         LINE#         94
+  C:016BH         LINE#         95
+  C:0170H         LINE#         98
+  C:0176H         LINE#         99
+  C:0182H         LINE#         100
+  C:018AH         LINE#         101
+  C:018AH         LINE#         104
+BL51 BANKED LINKER/LOCATER V6.22                                                      03/30/2026  19:07:37  PAGE 5
+
+
+  C:0190H         LINE#         105
+  C:019DH         LINE#         106
+  C:01A4H         LINE#         107
+  C:01A4H         LINE#         109
+  C:01A8H         LINE#         110
+  C:01A8H         LINE#         114
+  -------         ENDPROC       MAIN
+  -------         ENDMOD        MAIN
+
+  -------         MODULE        ?C?CLDPTR
+  C:0237H         PUBLIC        ?C?CLDPTR
+  -------         ENDMOD        ?C?CLDPTR
+
+Program Size: data=32.2 xdata=0 code=653
+LINK/LOCATE RUN COMPLETE.  0 WARNING(S),  0 ERROR(S)
