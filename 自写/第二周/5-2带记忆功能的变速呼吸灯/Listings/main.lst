@@ -1,0 +1,137 @@
+C51 COMPILER V9.54   MAIN                                                                  04/05/2026 16:25:30 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          #include <INTRINS.H>
+   3          
+   4          // --- 引脚定义 (使用你之前修正过的引脚) ---
+   5          sbit SCL = P2^1; 
+   6          sbit SDA = P2^0; 
+   7          sbit LED_D2 = P2^1; // PWM 输出给 D2
+   8          sbit K1 = P3^1;     // 加速
+   9          sbit K2 = P3^0;     // 减速
+  10          
+  11          // --- 全局变量 ---
+  12          unsigned char Target_Value = 0;   // 当前亮度
+  13          unsigned char PWM_Count = 0;
+  14          unsigned int  Time_Tick = 0;      // 内部计数
+  15          unsigned char Breath_Speed = 20;  // 呼吸速度 (从 EEPROM 读取)
+  16          bit Direction = 0;                // 0:变亮, 1:变暗
+  17          
+  18          // --- 基础延时 ---
+  19          void Delay(unsigned int ms) {
+  20   1          unsigned char i, j;
+  21   1          while (ms--) { i = 2; j = 239; do { while (--j); } while (--i); }
+  22   1      }
+  23          
+  24          // --- I2C 驱动 (你之前调通的慢速版) ---
+  25          void I2C_Delay() { _nop_(); _nop_(); _nop_(); _nop_(); }
+  26          void I2C_Start() { SDA=1; SCL=1; I2C_Delay(); SDA=0; I2C_Delay(); SCL=0; }
+  27          void I2C_Stop()  { SDA=0; I2C_Delay(); SCL=1; I2C_Delay(); SDA=1; }
+  28          void I2C_Send(unsigned char Byte) {
+  29   1          unsigned char i;
+  30   1          for(i=0; i<8; i++) { SDA=(Byte&(0x80>>i)); I2C_Delay(); SCL=1; I2C_Delay(); SCL=0; }
+  31   1          SDA=1; I2C_Delay(); SCL=1; I2C_Delay(); SCL=0;
+  32   1      }
+  33          unsigned char I2C_Read() {
+  34   1          unsigned char i, Byte=0; SDA=1; I2C_Delay();
+  35   1          for(i=0; i<8; i++){ SCL=1; I2C_Delay(); if(SDA) Byte|=(0x80>>i); SCL=0; I2C_Delay(); }
+  36   1          SDA=1; I2C_Delay(); SCL=1; I2C_Delay(); SCL=0; return Byte;
+  37   1      }
+  38          
+  39          // --- 存储逻辑 ---
+  40          void Save_Speed(unsigned char speed) {
+  41   1          TR0 = 0; // 写期间停掉定时器，防止干扰
+  42   1          I2C_Start(); I2C_Send(0xA0); I2C_Send(0x01); // 存在地址1，不影响之前的地址0
+  43   1          I2C_Send(speed); I2C_Stop();
+  44   1          Delay(15); TR0 = 1;
+  45   1      }
+  46          
+  47          unsigned char Load_Speed() {
+  48   1          unsigned char s;
+  49   1          I2C_Start(); I2C_Send(0xA0); I2C_Send(0x01);
+  50   1          I2C_Start(); I2C_Send(0xA1); s = I2C_Read(); I2C_Stop();
+  51   1          return s;
+  52   1      }
+  53          
+  54          // --- 定时器中断：同时控制 PWM 和 呼吸步进 ---
+C51 COMPILER V9.54   MAIN                                                                  04/05/2026 16:25:30 PAGE 2   
+
+  55          void Timer0_Init() {
+  56   1          TMOD &= 0xF0; TMOD |= 0x01;
+  57   1          TH0 = 0xFF; TL0 = 0x9C; // 100us
+  58   1          ET0 = 1; EA = 1; TR0 = 1;
+  59   1      }
+  60          
+  61          void Timer0_Routine() interrupt 1 {
+  62   1          TH0 = 0xFF; TL0 = 0x9C;
+  63   1          
+  64   1          // 1. PWM 亮度
+  65   1          PWM_Count++;
+  66   1          if(PWM_Count < Target_Value) LED_D2 = 0; else LED_D2 = 1;
+  67   1      
+  68   1          // 2. 呼吸逻辑
+  69   1          Time_Tick++;
+  70   1          if(Time_Tick >= Breath_Speed) { // 根据速度变量来决定多久变一次亮度
+  71   2              Time_Tick = 0;
+  72   2              if(Direction == 0) {
+  73   3                  Target_Value++; if(Target_Value >= 250) Direction = 1;
+  74   3              } else {
+  75   3                  Target_Value--; if(Target_Value <= 5) Direction = 0;
+  76   3              }
+  77   2          }
+  78   1      }
+  79          
+  80          // --- 主程序 ---
+  81          void main() {
+  82   1          // A. 开机读取上次的速度
+  83   1          Breath_Speed = Load_Speed();
+  84   1          if(Breath_Speed > 100 || Breath_Speed < 2) Breath_Speed = 20; // 默认速度
+  85   1          
+  86   1          Timer0_Init();
+  87   1      
+  88   1          while(1) {
+  89   2              // K1: 加快呼吸 (数值越小，Time_Tick 达标越快)
+  90   2              if(K1 == 0) {
+  91   3                  Delay(20);
+  92   3                  if(K1 == 0) {
+  93   4                      if(Breath_Speed > 5) Breath_Speed -= 5; 
+  94   4                      Save_Speed(Breath_Speed); // 记住新速度
+  95   4                      while(K1 == 0);
+  96   4                  }
+  97   3              }
+  98   2              
+  99   2              // K2: 减慢呼吸 (数值越大，呼吸越稳)
+ 100   2              if(K2 == 0) {
+ 101   3                  Delay(20);
+ 102   3                  if(K2 == 0) {
+ 103   4                      if(Breath_Speed < 95) Breath_Speed += 5;
+ 104   4                      Save_Speed(Breath_Speed); // 记住新速度
+ 105   4                      while(K2 == 0);
+ 106   4                  }
+ 107   3              }
+ 108   2          }
+ 109   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    393    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+C51 COMPILER V9.54   MAIN                                                                  04/05/2026 16:25:30 PAGE 3   
+
+   DATA SIZE        =      5    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

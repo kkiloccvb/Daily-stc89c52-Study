@@ -1,0 +1,74 @@
+C51 COMPILER V9.54   MAIN                                                                  04/05/2026 16:18:31 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          
+   3          sbit LED_D2 = P2^1; 
+   4          unsigned char Target_Value = 0; // 当前亮度
+   5          unsigned char PWM_Count = 0;
+   6          unsigned int Time_Count = 0;    // 用来控制呼吸速度的计数器
+   7          bit Direction = 0;              // 呼吸方向：0为变亮，1为变暗
+   8          
+   9          void Timer0_Init() {
+  10   1          TMOD &= 0xF0; TMOD |= 0x01;
+  11   1          TH0 = 0xFF; TL0 = 0x9C; // 100微秒中断一次
+  12   1          ET0 = 1; EA = 1; TR0 = 1;
+  13   1      }
+  14          
+  15          void Timer0_Routine() interrupt 1 {
+  16   1          TH0 = 0xFF; TL0 = 0x9C;
+  17   1          
+  18   1          // --- 部分 A：PWM 亮度控制 (周三/周四的功底) ---
+  19   1          PWM_Count++;
+  20   1          if(PWM_Count < Target_Value) LED_D2 = 0; 
+  21   1          else LED_D2 = 1;
+  22   1      
+  23   1          // --- 部分 B：自动呼吸算法 (周五的新内容) ---
+  24   1          Time_Count++;
+  25   1          if(Time_Count >= 50) { // 每 2ms (50 * 100us) 改变一次亮度
+  26   2              Time_Count = 0;
+  27   2              
+  28   2              if(Direction == 0) {    // 变亮过程
+  29   3                  Target_Value++;
+  30   3                  if(Target_Value >= 250) Direction = 1; // 到达顶峰，开始变暗
+  31   3              }
+  32   2              else {                  // 变暗过程
+  33   3                  Target_Value--;
+  34   3                  if(Target_Value <= 5) Direction = 0;   // 到达谷底，开始变亮
+  35   3              }
+  36   2          }
+  37   1      }
+  38          
+  39          void main() {
+  40   1          // 这里可以保留你周四的 Load_From_EEPROM() 
+  41   1          // 让呼吸灯从你上次设定的那个亮度开始“起吸”
+  42   1          
+  43   1          Timer0_Init();
+  44   1          while(1) {
+  45   2              // 周五的任务通常不需要在 while(1) 里写太多
+  46   2              // 因为一切都在中断（后台）里自动完成了
+  47   2          }
+  48   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    103    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+C51 COMPILER V9.54   MAIN                                                                  04/05/2026 16:18:31 PAGE 2   
+
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      4    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
