@@ -1,0 +1,154 @@
+C51 COMPILER V9.54   MAIN                                                                  04/08/2026 19:02:40 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          
+   3          typedef unsigned int u16;
+   4          typedef unsigned char u8;
+   5          
+   6          // --- 硬件引脚定义 (对照A2原理图) ---
+   7          sbit LSA  = P2^2;          // 138译码器输入A
+   8          sbit LSB  = P2^3;          // 138译码器输入B
+   9          sbit LSC  = P2^4;          // 138译码器输入C
+  10          sbit IRIN = P3^2;          // 红外接收头OUT脚 (INT0外部中断)
+  11          
+  12          // --- 全局变量 ---
+  13          u8 IrValue[4];             // 存储4字节红外数据：地址、地址反码、命令、命令反码
+  14          u8 DisplayData[8];         // 数码管显示缓冲区
+  15          u8 code smgduan[17] = {    // 共阴极数码管段码
+  16              0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07,
+  17              0x7f, 0x6f, 0x77, 0x7c, 0x39, 0x5e, 0x79, 0x71, 0x76
+  18          };
+  19          
+  20          /**
+  21           * 软件延时函数
+  22           * 注意：此函数在中断中使用时，其时间计算受晶振频率影响极大
+  23           */
+  24          void delay(u16 i) {
+  25   1          while(i--);
+  26   1      }
+  27          
+  28          /**
+  29           * 数码管动态扫描显示
+  30           */
+  31          void DigDisplay() {
+  32   1          u8 i;
+  33   1          for(i = 0; i < 3; i++) {
+  34   2              switch(i) {
+  35   3                  case 0: LSA=1; LSB=1; LSC=1; break; // 第0位
+  36   3                  case 1: LSA=0; LSB=1; LSC=1; break; // 第1位
+  37   3                  case 2: LSA=1; LSB=0; LSC=1; break; // 第2位
+  38   3              }
+  39   2              P0 = DisplayData[i];  // 传送段码
+  40   2              delay(100);           // 扫描延时
+  41   2              P0 = 0x00;            // 消隐，防止重影
+  42   2          }
+  43   1      }
+  44          
+  45          /**
+  46           * 红外初始化
+  47           */
+  48          void IrInit() {
+  49   1          IT0 = 1;   // 设置外部中断0为下降沿触发
+  50   1          EX0 = 1;   // 开启外部中断0
+  51   1          EA  = 1;   // 开启总中断
+  52   1          IRIN = 1;  // 初始化引脚高电平
+  53   1      }
+  54          
+C51 COMPILER V9.54   MAIN                                                                  04/08/2026 19:02:40 PAGE 2   
+
+  55          void main() {
+  56   1          IrInit();
+  57   1          while(1) {
+  58   2              // 将接收到的命令码(IrValue[2])以十六进制显示在数码管上
+  59   2              DisplayData[0] = smgduan[IrValue[2] / 16]; // 高4位
+  60   2              DisplayData[1] = smgduan[IrValue[2] % 16]; // 低4位
+  61   2              DisplayData[2] = smgduan[16];              // 显示"H"或其他标志
+  62   2              DigDisplay();
+  63   2          }
+  64   1      }
+  65          
+  66          /**
+  67           * 外部中断0服务函数 - 红外解码核心
+  68           */
+  69          void ReadIr() interrupt 0 {
+  70   1          u8 j, k;
+  71   1          u16 err;
+  72   1          u8 time;
+  73   1      
+  74   1          delay(700);        // 延时约7ms，避开9ms起始码的抖动部分
+  75   1          if (IRIN == 0) {   // 确认起始信号
+  76   2              
+  77   2              // 1. 等待9ms低电平结束
+  78   2              err = 1000;
+  79   2              while ((IRIN == 0) && (err > 0)) {
+  80   3                  delay(1);
+  81   3                  err--;
+  82   3              }
+  83   2      
+  84   2              // 2. 等待4.5ms高电平结束
+  85   2              if (IRIN == 1) {
+  86   3                  err = 500;
+  87   3                  while ((IRIN == 1) && (err > 0)) {
+  88   4                      delay(1);
+  89   4                      err--;
+  90   4                  }
+  91   3      
+  92   3                  // 3. 开始接收4个字节数据
+  93   3                  for (k = 0; k < 4; k++) {
+  94   4                      for (j = 0; j < 8; j++) {
+  95   5                          // 等待560us低电平过去
+  96   5                          err = 60;
+  97   5                          while ((IRIN == 0) && (err > 0)) {
+  98   6                              delay(1);
+  99   6                              err--;
+ 100   6                          }
+ 101   5      
+ 102   5                          // 计算高电平长度
+ 103   5                          err = 500;
+ 104   5                          time = 0;
+ 105   5                          while ((IRIN == 1) && (err > 0)) {
+ 106   6                              delay(10); // 约100us单位
+ 107   6                              time++;
+ 108   6                              err--;
+ 109   6                              if (time > 30) return; // 超时退出
+ 110   6                          }
+ 111   5      
+ 112   5                          // 位移并存入数据
+ 113   5                          IrValue[k] >>= 1;
+ 114   5                          if (time >= 8) {       // 高电平长于0.8ms判断为1
+ 115   6                              IrValue[k] |= 0x80;
+ 116   6                          }
+C51 COMPILER V9.54   MAIN                                                                  04/08/2026 19:02:40 PAGE 3   
+
+ 117   5                      }
+ 118   4                  }
+ 119   3              }
+ 120   2              
+ 121   2              // 4. 校验数据（命令码与命令反码是否匹配）
+ 122   2              if (IrValue[2] != ~IrValue[3]) {
+ 123   3                  return;
+ 124   3              }
+ 125   2          }
+ 126   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    336    ----
+   CONSTANT SIZE    =     17    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     12       2
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
