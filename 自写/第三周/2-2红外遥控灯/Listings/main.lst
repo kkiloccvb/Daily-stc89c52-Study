@@ -1,0 +1,109 @@
+C51 COMPILER V9.54   MAIN                                                                  04/08/2026 19:21:21 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          
+   3          typedef unsigned char u8;
+   4          typedef unsigned int u16;
+   5          
+   6          // --- 硬件定义 ---
+   7          sbit IRIN = P3^2;    // 红外接收头接在 P3.2 (外部中断0)
+   8          sbit LED1 = P2^0;    // 假设我们要控制第一颗LED
+   9          sbit LED2 = P2^1;    // 假设我们要控制第二颗LED
+  10          
+  11          u8 IrValue[4];       // 存储红外 4 字节数据
+  12          u8 IrOK = 0;         // 接收成功标志位
+  13          
+  14          // --- 延时函数 (针对 11.0592MHz) ---
+  15          void delay(u16 i) {
+  16   1          while(i--);
+  17   1      }
+  18          
+  19          // --- 红外初始化 ---
+  20          void IrInit() {
+  21   1          IT0 = 1;    // 下降沿触发
+  22   1          EX0 = 1;    // 开启外部中断0
+  23   1          EA  = 1;    // 开启总中断
+  24   1          IRIN = 1;
+  25   1      }
+  26          
+  27          void main() {
+  28   1          IrInit();
+  29   1          LED1 = 1;   // 默认关灯 (51单片机高电平关)
+  30   1          LED2 = 1;
+  31   1      
+  32   1          while(1) {
+  33   2              if(IrOK) {      // 如果收到了一帧完整的红外数据
+  34   3                  IrOK = 0;   // 清除标志位
+  35   3      
+  36   3                  /* 根据 NEC 协议，IrValue[2] 是数据码。
+  37   3                     你需要根据你的遥控器实际键值来修改下面的十六进制数。
+  38   3                     通常“1”键是 0x0C，“2”键是 0x18 (不同遥控器不同)。
+  39   3                  */
+  40   3                  switch(IrValue[2]) {
+  41   4                      case 0x45: LED1 = ~LED1; break; // 比如按“CH-”键翻转LED1
+  42   4                      case 0x46: LED2 = ~LED2; break; // 比如按“CH”键翻转LED2
+  43   4                      case 0x47: P2 = 0xFF;    break; // 比如按“CH+”键全关
+  44   4                  }
+  45   3              }
+  46   2          }
+  47   1      }
+  48          
+  49          // --- 红外中断解码服务函数 ---
+  50          void ReadIr() interrupt 0 {
+  51   1          u8 j, k;
+  52   1          u16 err;
+  53   1          u8 time;
+  54   1      
+C51 COMPILER V9.54   MAIN                                                                  04/08/2026 19:21:21 PAGE 2   
+
+  55   1          delay(700); // 避开起始码
+  56   1          if(IRIN == 0) {
+  57   2              err = 1000;
+  58   2              while((IRIN == 0) && (err > 0)) { delay(1); err--; }
+  59   2              if(IRIN == 1) {
+  60   3                  err = 500;
+  61   3                  while((IRIN == 1) && (err > 0)) { delay(1); err--; }
+  62   3                  for(k = 0; k < 4; k++) {
+  63   4                      for(j = 0; j < 8; j++) {
+  64   5                          err = 60;
+  65   5                          while((IRIN == 0) && (err > 0)) { delay(1); err--; }
+  66   5                          err = 500;
+  67   5                          time = 0;
+  68   5                          while((IRIN == 1) && (err > 0)) {
+  69   6                              delay(10); // 约100us
+  70   6                              time++; err--;
+  71   6                              if(time > 30) return;
+  72   6                          }
+  73   5                          IrValue[k] >>= 1;
+  74   5                          if(time >= 8) IrValue[k] |= 0x80;
+  75   5                          time = 0;
+  76   5                      }
+  77   4                  }
+  78   3              }
+  79   2              // 校验数据
+  80   2              if(IrValue[2] != ~IrValue[3]) return;
+  81   2              IrOK = 1; // 标记解码成功
+  82   2          }
+  83   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    302    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      5       2
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
