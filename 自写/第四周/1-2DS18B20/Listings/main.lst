@@ -1,0 +1,149 @@
+C51 COMPILER V9.54   MAIN                                                                  04/15/2026 22:05:10 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\Keil_v5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main
+                    -.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          #include <INTRINS.H>
+   3          
+   4          // --- 引脚定义 ---
+   5          sbit DS1302_SCLK = P3^6; 
+   6          sbit DS1302_IO   = P3^4; 
+   7          sbit DS1302_CE   = P3^5; 
+   8          
+   9          sbit LCD_RS = P2^6;
+  10          sbit LCD_RW = P2^5;
+  11          sbit LCD_EN = P2^7;
+  12          #define LCD_DataPort P0
+  13          
+  14          // 译码器 (关闭点阵/数码管)
+  15          sbit ADDR_A = P2^2;
+  16          sbit ADDR_B = P2^3;
+  17          sbit ADDR_C = P2^4;
+  18          
+  19          // --- 延时 ---
+  20          void DelayMs(unsigned int ms) {
+  21   1          unsigned char i, j;
+  22   1          while(ms--) {
+  23   2              i = 2; j = 239;
+  24   2              do { while (--j); } while (--i);
+  25   2          }
+  26   1      }
+  27          
+  28          // --- LCD 驱动 ---
+  29          void Lcd_WriteCmd(unsigned char cmd) {
+  30   1          LCD_RS=0; LCD_RW=0; LCD_DataPort=cmd;
+  31   1          LCD_EN=1; _nop_(); LCD_EN=0; DelayMs(2);
+  32   1      }
+  33          void Lcd_WriteData(unsigned char dat) {
+  34   1          LCD_RS=1; LCD_RW=0; LCD_DataPort=dat;
+  35   1          LCD_EN=1; _nop_(); LCD_EN=0; DelayMs(2);
+  36   1      }
+  37          void Lcd_Init() {
+  38   1          Lcd_WriteCmd(0x38); Lcd_WriteCmd(0x0C);
+  39   1          Lcd_WriteCmd(0x06); Lcd_WriteCmd(0x01);
+  40   1      }
+  41          
+  42          // --- DS1302 慢时序读写 ---
+  43          void DS1302_W(unsigned char dat) {
+  44   1          unsigned char i;
+  45   1          for(i=0; i<8; i++) {
+  46   2              DS1302_IO = dat & 0x01;
+  47   2              DS1302_SCLK = 1; _nop_(); _nop_(); // 增加脉冲宽度
+  48   2              DS1302_SCLK = 0; _nop_(); _nop_();
+  49   2              dat >>= 1;
+  50   2          }
+  51   1      }
+  52          unsigned char DS1302_R() {
+  53   1          unsigned char i, dat=0;
+  54   1          for(i=0; i<8; i++) {
+C51 COMPILER V9.54   MAIN                                                                  04/15/2026 22:05:10 PAGE 2   
+
+  55   2              dat >>= 1;
+  56   2              DS1302_IO = 1; // 关键：释放总线
+  57   2              if(DS1302_IO) dat |= 0x80;
+  58   2              DS1302_SCLK = 1; _nop_(); _nop_();
+  59   2              DS1302_SCLK = 0; _nop_(); _nop_();
+  60   2          }
+  61   1          return dat;
+  62   1      }
+  63          
+  64          unsigned char Get_RTC(unsigned char addr) {
+  65   1          unsigned char b;
+  66   1          DS1302_CE=0; DS1302_SCLK=0; DS1302_CE=1;
+  67   1          DS1302_W(addr | 0x01);
+  68   1          b = DS1302_R();
+  69   1          DS1302_CE=0;
+  70   1          return (b/16)*10 + (b%16); // BCD转十进制
+  71   1      }
+  72          
+  73          void Set_RTC(unsigned char addr, unsigned char dec) {
+  74   1          unsigned char bcd = (dec/10)*16 + (dec%10);
+  75   1          DS1302_CE=0; DS1302_SCLK=0; DS1302_CE=1;
+  76   1          DS1302_W(addr);
+  77   1          DS1302_W(bcd);
+  78   1          DS1302_CE=0;
+  79   1      }
+  80          
+  81          void main() {
+  82   1          unsigned char s, m, h;
+  83   1          
+  84   1          // 1. 屏蔽点阵和数码管：这一步不跳过，否则P0口不稳
+  85   1          ADDR_A=1; ADDR_B=1; ADDR_C=1; 
+  86   1          
+  87   1          Lcd_Init();
+  88   1          
+  89   1          // 2. 强制解锁并重置时钟
+  90   1          DS1302_CE=1; DS1302_W(0x8E); DS1302_W(0x00); DS1302_CE=0;
+  91   1          Set_RTC(0x80, 5);  // 秒 (CH位会被清零，强制起振)
+  92   1          Set_RTC(0x82, 0);  // 分
+  93   1          Set_RTC(0x84, 10); // 时
+  94   1      
+  95   1          while(1) {
+  96   2              h = Get_RTC(0x84);
+  97   2              m = Get_RTC(0x82);
+  98   2              s = Get_RTC(0x80);
+  99   2      
+ 100   2              // 第一行日期显示
+ 101   2              Lcd_WriteCmd(0x80);
+ 102   2              Lcd_WriteData('2'); Lcd_WriteData('0'); Lcd_WriteData('2'); Lcd_WriteData('6');
+ 103   2              Lcd_WriteData('-'); Lcd_WriteData('0'); Lcd_WriteData('4');
+ 104   2              Lcd_WriteData('-'); Lcd_WriteData('1'); Lcd_WriteData('5');
+ 105   2      
+ 106   2              // 第二行显示
+ 107   2              Lcd_WriteCmd(0x80 + 0x40);
+ 108   2              // 如果读出来全是0，说明RTC没工作，显示 E 代替
+ 109   2              if(h==0 && m==0 && s==0) {
+ 110   3                  Lcd_WriteData('E'); Lcd_WriteData('r'); Lcd_WriteData('r');
+ 111   3              } else {
+ 112   3                  Lcd_WriteData(h/10 + '0'); Lcd_WriteData(h%10 + '0');
+ 113   3                  Lcd_WriteData(':');
+ 114   3                  Lcd_WriteData(m/10 + '0'); Lcd_WriteData(m%10 + '0');
+ 115   3                  Lcd_WriteData(':');
+ 116   3                  Lcd_WriteData(s/10 + '0'); Lcd_WriteData(s%10 + '0');
+C51 COMPILER V9.54   MAIN                                                                  04/15/2026 22:05:10 PAGE 3   
+
+ 117   3              }
+ 118   2              
+ 119   2              DelayMs(200); 
+ 120   2          }
+ 121   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    426    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
