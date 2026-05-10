@@ -1,4 +1,0 @@
-".\Objects\STARTUP.obj",
-".\Objects\main.obj" 
-TO ".\Objects\串口通讯" 
-PRINT(".\Listings\串口通讯.m51") RAMSIZE(256) 
